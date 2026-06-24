@@ -7,6 +7,12 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('gemini_api_key')
+    .eq('id', user.id)
+    .single()
+
   const body = await req.json()
   const { session_id, tier_number, selected_idea, ...sessionData } = body
 
@@ -14,16 +20,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'session_id, tier_number, selected_idea diperlukan' }, { status: 400 })
   }
 
-  const result = await generateFunnelRecommendation(sessionData, tier_number, selected_idea)
+  try {
+    const result = await generateFunnelRecommendation(sessionData, tier_number, selected_idea, profile?.gemini_api_key)
 
-  await supabase.from('tier_entries').update({
-    selected_idea,
-    funnel_type: result.funnel_type,
-    funnel_steps: result.funnel_steps,
-  }).eq('session_id', session_id).eq('tier_number', tier_number)
+    await supabase.from('tier_entries').update({
+      selected_idea,
+      funnel_type: result.funnel_type,
+      funnel_steps: result.funnel_steps,
+    }).eq('session_id', session_id).eq('tier_number', tier_number)
 
-  await supabase.from('sessions').update({ current_step: 5 })
-    .eq('id', session_id).eq('user_id', user.id)
+    await supabase.from('sessions').update({ current_step: 5 })
+      .eq('id', session_id).eq('user_id', user.id)
 
-  return NextResponse.json(result)
+    return NextResponse.json(result)
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Terjadi kesalahan pada Gemini API'
+    return NextResponse.json({ error: message }, { status: 500 })
+  }
 }

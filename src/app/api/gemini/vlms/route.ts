@@ -7,6 +7,12 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('gemini_api_key')
+    .eq('id', user.id)
+    .single()
+
   const body = await req.json()
   const { session_id, product_name, product_type, price_idr, target_buyer, is_active, industry } = body
 
@@ -14,14 +20,22 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Field tidak lengkap' }, { status: 400 })
   }
 
-  const vlmsResult = await generateVLMS({ product_name, product_type, price_idr, target_buyer, is_active, industry })
+  try {
+    const vlmsResult = await generateVLMS(
+      { product_name, product_type, price_idr, target_buyer, is_active, industry },
+      profile?.gemini_api_key
+    )
 
-  if (session_id) {
-    await supabase.from('sessions').update({
-      vlms: vlmsResult.vlms,
-      current_step: 2,
-    }).eq('id', session_id).eq('user_id', user.id)
+    if (session_id) {
+      await supabase.from('sessions').update({
+        vlms: vlmsResult.vlms,
+        current_step: 2,
+      }).eq('id', session_id).eq('user_id', user.id)
+    }
+
+    return NextResponse.json(vlmsResult)
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Terjadi kesalahan pada Gemini API'
+    return NextResponse.json({ error: message }, { status: 500 })
   }
-
-  return NextResponse.json(vlmsResult)
 }

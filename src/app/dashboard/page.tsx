@@ -11,14 +11,15 @@ export default async function DashboardPage() {
   if (!user) redirect('/auth/login')
 
   const [{ data: profile }, { data: sessions }] = await Promise.all([
-    supabase.from('profiles').select('is_subscriber').eq('id', user.id).single(),
+    supabase.from('profiles').select('is_subscriber, tier, role').eq('id', user.id).single(),
     supabase.from('sessions')
       .select('id, title, current_step, is_complete, updated_at, product_name, product_type, current_tier, priority_tier')
       .eq('user_id', user.id)
       .order('updated_at', { ascending: false }),
   ])
 
-  const isSubscriber = profile?.is_subscriber ?? false
+  const isSubscriber = profile?.is_subscriber || profile?.tier === 'subscriber' || profile?.tier === 'beta'
+  const isAdmin = profile?.role === 'admin'
   const canCreateNew = isSubscriber || (sessions?.length ?? 0) === 0
 
   async function signOut() {
@@ -40,6 +41,14 @@ export default async function DashboardPage() {
             ) : (
               <Link href="/upgrade" className="text-xs text-violet-600 font-medium hover:underline">Upgrade →</Link>
             )}
+            {isAdmin && (
+              <Link href="/admin/orders" className="text-xs bg-red-100 text-red-700 px-2.5 py-1 rounded-full font-medium hover:bg-red-200 transition-colors">
+                Admin
+              </Link>
+            )}
+            <Link href="/settings" className="text-sm text-gray-500 hover:text-gray-700 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors">
+              Pengaturan
+            </Link>
             <form action={signOut}>
               <button type="submit" className="text-sm text-gray-500 hover:text-gray-700 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors">
                 Keluar

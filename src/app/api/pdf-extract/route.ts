@@ -7,6 +7,12 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('gemini_api_key')
+    .eq('id', user.id)
+    .single()
+
   const formData = await req.formData()
   const file = formData.get('file') as File | null
 
@@ -14,7 +20,6 @@ export async function POST(req: NextRequest) {
   if (file.type !== 'application/pdf') return NextResponse.json({ error: 'Hanya PDF yang didukung' }, { status: 400 })
   if (file.size > 20 * 1024 * 1024) return NextResponse.json({ error: 'Ukuran file maksimal 20MB' }, { status: 400 })
 
-  // Upload ke Supabase Storage
   const fileName = `${user.id}/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`
   const bytes = await file.arrayBuffer()
   const buffer = Buffer.from(bytes)
@@ -29,9 +34,12 @@ export async function POST(req: NextRequest) {
 
   const { data: { publicUrl } } = supabase.storage.from('pdf-uploads').getPublicUrl(uploadData.path)
 
-  // Kirim ke Gemini untuk ekstraksi
-  const base64 = buffer.toString('base64')
-  const extracted = await extractProductFromPDF(base64, 'application/pdf')
-
-  return NextResponse.json({ ...extracted, pdf_url: publicUrl })
+  try {
+    const base64 = buffer.toString('base64')
+    const extracted = await extractProductFromPDF(base64, 'application/pdf', profile?.gemini_api_key)
+    return NextResponse.json({ ...extracted, pdf_url: publicUrl })
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Terjadi kesalahan pada Gemini API'
+    return NextResponse.json({ error: message }, { status: 500 })
+  }
 }

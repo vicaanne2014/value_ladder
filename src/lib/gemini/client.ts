@@ -10,11 +10,16 @@ import type {
   ProductType,
 } from '@/types'
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! })
-
 const MODEL = 'gemini-2.5-pro'
 
-async function callGemini(prompt: string): Promise<string> {
+function getAI(userApiKey?: string | null) {
+  const key = userApiKey || process.env.GEMINI_API_KEY
+  if (!key) throw new Error('Gemini API key tidak ditemukan. Silakan tambahkan API key di halaman Settings.')
+  return new GoogleGenAI({ apiKey: key })
+}
+
+async function callGemini(prompt: string, userApiKey?: string | null): Promise<string> {
+  const ai = getAI(userApiKey)
   const response = await ai.models.generateContent({
     model: MODEL,
     contents: prompt,
@@ -27,13 +32,14 @@ async function callGemini(prompt: string): Promise<string> {
 }
 
 // Langkah 1: ekstrak profil produk dari PDF
-export async function extractProductFromPDF(pdfBase64: string, mimeType: string): Promise<{
+export async function extractProductFromPDF(pdfBase64: string, mimeType: string, userApiKey?: string | null): Promise<{
   product_name: string
   product_type: ProductType
   price_idr: number | null
   target_buyer: string
   is_active: boolean
 }> {
+  const ai = getAI(userApiKey)
   const response = await ai.models.generateContent({
     model: MODEL,
     contents: [
@@ -59,7 +65,7 @@ Jika dokumen tidak mengandung informasi produk yang cukup, kembalikan semua fiel
 }
 
 // Langkah 1: generate VLMS dari profil produk
-export async function generateVLMS(session: Partial<Session>): Promise<GeminiVLMSResponse> {
+export async function generateVLMS(session: Partial<Session>, userApiKey?: string | null): Promise<GeminiVLMSResponse> {
   const prompt = `
 Berdasarkan produk berikut, buat Value Ladder Mission Statement (VLMS).
 
@@ -77,12 +83,12 @@ Kembalikan JSON:
   "product_type_confirmed": "digital" | "fisik" | "jasa"
 }
 `
-  const raw = await callGemini(prompt)
+  const raw = await callGemini(prompt, userApiKey)
   return JSON.parse(raw)
 }
 
 // Langkah 2: tempatkan produk di tier dan petakan semua tier
-export async function analyzeTiers(session: Partial<Session>): Promise<GeminiTierResponse> {
+export async function analyzeTiers(session: Partial<Session>, userApiKey?: string | null): Promise<GeminiTierResponse> {
   const prompt = `
 Analisis produk ini dan tentukan posisinya dalam Value Ladder.
 
@@ -115,7 +121,7 @@ Penting:
 - tier kosong: berikan 2-3 ide spesifik sesuai jenis produk (${session.product_type}) dan VLMS
 - ide harus spesifik dan konkret, sertakan kisaran harga dalam Rupiah
 `
-  const raw = await callGemini(prompt)
+  const raw = await callGemini(prompt, userApiKey)
   return JSON.parse(raw)
 }
 
@@ -123,7 +129,8 @@ Penting:
 export async function generateFunnelRecommendation(
   session: Partial<Session>,
   tierNumber: 1 | 2 | 3 | 4,
-  selectedIdea: string
+  selectedIdea: string,
+  userApiKey?: string | null
 ): Promise<GeminiFunnelResponse> {
   const prompt = `
 Rekomendasikan funnel penjualan untuk produk/tier berikut.
@@ -149,7 +156,7 @@ Kembalikan JSON:
 
 Langkah funnel harus spesifik dan actionable. Sertakan konteks WhatsApp/email Indonesia jika relevan.
 `
-  const raw = await callGemini(prompt)
+  const raw = await callGemini(prompt, userApiKey)
   return JSON.parse(raw)
 }
 
@@ -157,7 +164,8 @@ Langkah funnel harus spesifik dan actionable. Sertakan konteks WhatsApp/email In
 export async function generateTrafficRecommendation(
   session: Partial<Session>,
   tierNumber: 1 | 2 | 3 | 4,
-  funnelType: string
+  funnelType: string,
+  userApiKey?: string | null
 ): Promise<GeminiTrafficResponse> {
   const prompt = `
 Rekomendasikan strategi traffic dan iklan untuk funnel berikut.
@@ -184,12 +192,12 @@ Kembalikan JSON:
 Gunakan platform relevan Indonesia: Meta Ads, TikTok Ads, Google Ads, Shopee/Tokopedia, WhatsApp, email.
 Berikan 3-4 traffic_recs dengan suhu audiens bervariasi.
 `
-  const raw = await callGemini(prompt)
+  const raw = await callGemini(prompt, userApiKey)
   return JSON.parse(raw)
 }
 
 // Langkah 5: ringkasan eksekutif
-export async function generateExecutiveSummary(session: Partial<Session>): Promise<GeminiExecutiveSummary> {
+export async function generateExecutiveSummary(session: Partial<Session>, userApiKey?: string | null): Promise<GeminiExecutiveSummary> {
   const prompt = `
 Buat ringkasan eksekutif Value Ladder untuk bisnis ini.
 
@@ -206,6 +214,6 @@ Kembalikan JSON:
   "estimated_setup_weeks": angka estimasi minggu untuk setup funnel pertama
 }
 `
-  const raw = await callGemini(prompt)
+  const raw = await callGemini(prompt, userApiKey)
   return JSON.parse(raw)
 }
