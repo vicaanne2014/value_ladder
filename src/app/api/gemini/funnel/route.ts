@@ -1,0 +1,29 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@/lib/supabase/server'
+import { generateFunnelRecommendation } from '@/lib/gemini/client'
+
+export async function POST(req: NextRequest) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const body = await req.json()
+  const { session_id, tier_number, selected_idea, ...sessionData } = body
+
+  if (!session_id || !tier_number || !selected_idea) {
+    return NextResponse.json({ error: 'session_id, tier_number, selected_idea diperlukan' }, { status: 400 })
+  }
+
+  const result = await generateFunnelRecommendation(sessionData, tier_number, selected_idea)
+
+  await supabase.from('tier_entries').update({
+    selected_idea,
+    funnel_type: result.funnel_type,
+    funnel_steps: result.funnel_steps,
+  }).eq('session_id', session_id).eq('tier_number', tier_number)
+
+  await supabase.from('sessions').update({ current_step: 5 })
+    .eq('id', session_id).eq('user_id', user.id)
+
+  return NextResponse.json(result)
+}
