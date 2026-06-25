@@ -18,17 +18,42 @@ function getAI(userApiKey?: string | null) {
   return new GoogleGenAI({ apiKey: key })
 }
 
+function parseGeminiError(err: unknown, isUserKey: boolean): never {
+  const msg = err instanceof Error ? err.message : String(err)
+  if (msg.includes('API_KEY_INVALID') || msg.includes('API key not valid')) {
+    if (isUserKey) {
+      throw new Error('API key Anda tidak valid. Pastikan key benar di aistudio.google.com/apikey dan sudah diaktifkan.')
+    }
+    throw new Error('Konfigurasi server bermasalah. Hubungi admin.')
+  }
+  if (msg.includes('PERMISSION_DENIED') || msg.includes('403')) {
+    throw new Error('API key tidak punya izin untuk Gemini API. Aktifkan Generative Language API di Google Cloud Console.')
+  }
+  if (msg.includes('RESOURCE_EXHAUSTED') || msg.includes('429')) {
+    throw new Error('Kuota Gemini API habis. Coba lagi nanti atau gunakan API key Anda sendiri.')
+  }
+  if (msg.includes('fetch failed') || msg.includes('ENOTFOUND')) {
+    throw new Error('Tidak dapat terhubung ke Gemini API. Periksa koneksi internet.')
+  }
+  throw new Error('Terjadi kesalahan pada AI. Coba lagi dalam beberapa saat.')
+}
+
 async function callGemini(prompt: string, userApiKey?: string | null): Promise<string> {
+  const isUserKey = !!userApiKey
   const ai = getAI(userApiKey)
-  const response = await ai.models.generateContent({
-    model: MODEL,
-    contents: prompt,
-    config: {
-      systemInstruction: VALUE_LADDER_SYSTEM_PROMPT,
-      responseMimeType: 'application/json',
-    },
-  })
-  return response.text ?? ''
+  try {
+    const response = await ai.models.generateContent({
+      model: MODEL,
+      contents: prompt,
+      config: {
+        systemInstruction: VALUE_LADDER_SYSTEM_PROMPT,
+        responseMimeType: 'application/json',
+      },
+    })
+    return response.text ?? ''
+  } catch (err) {
+    parseGeminiError(err, isUserKey)
+  }
 }
 
 // Langkah 1: ekstrak profil produk dari PDF
@@ -39,14 +64,16 @@ export async function extractProductFromPDF(pdfBase64: string, mimeType: string,
   target_buyer: string
   is_active: boolean
 }> {
+  const isUserKey = !!userApiKey
   const ai = getAI(userApiKey)
-  const response = await ai.models.generateContent({
-    model: MODEL,
-    contents: [
-      {
-        inlineData: { mimeType, data: pdfBase64 },
-      },
-      `Ekstrak informasi produk dari dokumen ini. Kembalikan JSON dengan format:
+  try {
+    const response = await ai.models.generateContent({
+      model: MODEL,
+      contents: [
+        {
+          inlineData: { mimeType, data: pdfBase64 },
+        },
+        `Ekstrak informasi produk dari dokumen ini. Kembalikan JSON dengan format:
 {
   "product_name": "nama produk utama",
   "product_type": "digital" | "fisik" | "jasa",
@@ -55,13 +82,16 @@ export async function extractProductFromPDF(pdfBase64: string, mimeType: string,
   "is_active": true jika sudah dijual, false jika masih rencana
 }
 Jika dokumen tidak mengandung informasi produk yang cukup, kembalikan semua field dengan nilai null/"" dan tambahkan field "insufficient_data": true.`,
-    ],
-    config: {
-      systemInstruction: VALUE_LADDER_SYSTEM_PROMPT,
-      responseMimeType: 'application/json',
-    },
-  })
-  return JSON.parse(response.text ?? '{}')
+      ],
+      config: {
+        systemInstruction: VALUE_LADDER_SYSTEM_PROMPT,
+        responseMimeType: 'application/json',
+      },
+    })
+    return JSON.parse(response.text ?? '{}')
+  } catch (err) {
+    parseGeminiError(err, isUserKey)
+  }
 }
 
 // Langkah 1: generate VLMS dari profil produk
