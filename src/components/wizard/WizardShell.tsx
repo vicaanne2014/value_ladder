@@ -158,6 +158,8 @@ export default function WizardShell({ isSubscriber, initialSession }: Props) {
             <Step4Ideas
               tierResult={tierResult}
               tierEntries={session.tier_entries ?? []}
+              sessionId={session.id ?? ''}
+              sessionData={session as Record<string, unknown>}
               onNext={handleStep4}
               onBack={() => setStep(3)}
             />
@@ -181,7 +183,11 @@ export default function WizardShell({ isSubscriber, initialSession }: Props) {
             />
           )}
           {step === 7 && (
-            <Step7Output session={session} isSubscriber={isSubscriber} />
+            <Step7Output
+              session={session}
+              isSubscriber={isSubscriber}
+              onRedo={() => setStep(4)}
+            />
           )}
         </div>
       </div>

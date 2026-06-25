@@ -11,9 +11,10 @@ import type { Session } from '@/types'
 interface Props {
   session: Partial<Session>
   isSubscriber: boolean
+  onRedo?: () => void
 }
 
-export default function Step7Output({ session, isSubscriber }: Props) {
+export default function Step7Output({ session, isSubscriber, onRedo }: Props) {
   const [summary, setSummary] = useState<{
     summary: string
     start_here: string
@@ -147,6 +148,19 @@ export default function Step7Output({ session, isSubscriber }: Props) {
       </Card>
 
       {error && <p className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
+
+      {/* Kerjakan tier lain */}
+      {onRedo && (
+        <div className="bg-violet-50 border border-violet-100 rounded-2xl p-4 flex items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium text-violet-900">Kerjakan tier berikutnya?</p>
+            <p className="text-xs text-violet-600 mt-0.5">Pilih tier lain, ganti ide, atau buat funnel baru untuk tier yang belum dibangun.</p>
+          </div>
+          <Button variant="secondary" onClick={onRedo} className="shrink-0 text-violet-700 border-violet-200">
+            Ganti Tier / Ide
+          </Button>
+        </div>
+      )}
 
       {/* Export */}
       {isSubscriber ? (
