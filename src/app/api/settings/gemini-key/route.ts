@@ -43,9 +43,6 @@ export async function POST(req: NextRequest) {
 
   if (gemini_api_key !== null && gemini_api_key !== undefined) {
     const trimmed = String(gemini_api_key).trim()
-    if (trimmed && !trimmed.startsWith('AIza')) {
-      return NextResponse.json({ error: 'Format Gemini API key tidak valid. Harus diawali dengan "AIza"' }, { status: 400 })
-    }
 
     await supabase
       .from('profiles')
