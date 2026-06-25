@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+﻿import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import GeminiKeyForm from './GeminiKeyForm'
@@ -10,12 +10,13 @@ export default async function SettingsPage() {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('is_subscriber, gemini_api_key')
+    .select('is_subscriber, tier, gemini_api_key, free_generate_used')
     .eq('id', user.id)
     .single()
 
-  const isSubscriber = profile?.is_subscriber ?? false
+  const isSubscriber = profile?.is_subscriber || profile?.tier === 'subscriber' || profile?.tier === 'beta'
   const hasKey = !!profile?.gemini_api_key
+  const freeUsed = profile?.free_generate_used ?? false
   const keyPreview = profile?.gemini_api_key
     ? `${profile.gemini_api_key.slice(0, 6)}...${profile.gemini_api_key.slice(-4)}`
     : null
@@ -41,7 +42,7 @@ export default async function SettingsPage() {
             <div>
               <h2 className="font-semibold text-gray-900">Gemini API Key</h2>
               <p className="text-sm text-gray-500 mt-1">
-                Gunakan API key Gemini milik Anda sendiri untuk meningkatkan kuota dan kontrol biaya.
+                Gunakan API key Gemini milik Anda sendiri untuk generate AI tanpa batas.
               </p>
             </div>
             {hasKey && (
@@ -52,22 +53,28 @@ export default async function SettingsPage() {
             )}
           </div>
 
-          {!isSubscriber ? (
-            <div className="bg-violet-50 rounded-xl p-4">
-              <p className="text-sm text-violet-800 font-medium mb-1">Fitur Subscriber</p>
-              <p className="text-sm text-violet-600 mb-3">
-                Tambahkan Gemini API key pribadi Anda agar tidak bergantung pada kuota bersama.
+          {!isSubscriber && !hasKey && freeUsed && (
+            <div className="mb-4 bg-amber-50 border border-amber-100 rounded-xl p-4">
+              <p className="text-sm text-amber-800 font-medium mb-1">Kuota generate gratis sudah digunakan</p>
+              <p className="text-sm text-amber-700">
+                Tambahkan API key Gemini Anda sendiri di bawah untuk melanjutkan, atau{' '}
+                <Link href="/upgrade" className="font-medium underline underline-offset-2">upgrade ke Subscriber</Link>{' '}
+                untuk akses tak terbatas.
               </p>
-              <Link
-                href="/upgrade"
-                className="inline-flex items-center text-sm font-medium text-violet-700 hover:text-violet-900 underline underline-offset-2"
-              >
-                Upgrade ke Subscriber →
-              </Link>
             </div>
-          ) : (
-            <GeminiKeyForm hasKey={hasKey} keyPreview={keyPreview} />
           )}
+
+          {!isSubscriber && !hasKey && !freeUsed && (
+            <div className="mb-4 bg-blue-50 border border-blue-100 rounded-xl p-4">
+              <p className="text-sm text-blue-800">
+                Anda masih punya <span className="font-semibold">1 generate gratis</span>.
+                Tambahkan API key sendiri agar tidak terbatas, atau{' '}
+                <Link href="/upgrade" className="font-medium underline underline-offset-2">upgrade ke Subscriber</Link>.
+              </p>
+            </div>
+          )}
+
+          <GeminiKeyForm hasKey={hasKey} keyPreview={keyPreview} />
 
           <div className="mt-4 pt-4 border-t border-gray-50">
             <p className="text-xs text-gray-400">
@@ -88,8 +95,8 @@ export default async function SettingsPage() {
               </p>
               <p className="text-xs text-gray-400 mt-0.5">
                 {isSubscriber
-                  ? 'Sesi tak terbatas, ekspor PDF, API key pribadi'
-                  : 'Maksimal 1 sesi, tanpa ekspor PDF'}
+                  ? 'Sesi tak terbatas, ekspor PDF, prioritas AI'
+                  : 'Maksimal 1 sesi gratis, tanpa ekspor PDF'}
               </p>
             </div>
             {!isSubscriber && (

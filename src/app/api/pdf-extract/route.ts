@@ -1,17 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { extractProductFromPDF } from '@/lib/gemini/client'
+import { checkGeminiAccess, markFreeGenerateUsed } from '@/lib/gemini/access'
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('gemini_api_key')
-    .eq('id', user.id)
-    .single()
+  const access = await checkGeminiAccess(supabase, user.id)
+  if (!access.allowed) {
+    return NextResponse.json({ error: access.message, upgrade_required: true }, { status: 403 })
+  }
 
   const formData = await req.formData()
   const file = formData.get('file') as File | null
@@ -36,7 +36,8 @@ export async function POST(req: NextRequest) {
 
   try {
     const base64 = buffer.toString('base64')
-    const extracted = await extractProductFromPDF(base64, 'application/pdf', profile?.gemini_api_key)
+    const extracted = await extractProductFromPDF(base64, 'application/pdf', access.apiKey)
+    if (access.markUsed) await markFreeGenerateUsed(supabase, user.id)
     return NextResponse.json({ ...extracted, pdf_url: publicUrl })
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Terjadi kesalahan pada Gemini API'

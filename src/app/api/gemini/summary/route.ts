@@ -1,17 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { generateExecutiveSummary } from '@/lib/gemini/client'
+import { checkGeminiAccess, markFreeGenerateUsed } from '@/lib/gemini/access'
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('gemini_api_key')
-    .eq('id', user.id)
-    .single()
+  const access = await checkGeminiAccess(supabase, user.id)
+  if (!access.allowed) {
+    return NextResponse.json({ error: access.message, upgrade_required: true }, { status: 403 })
+  }
 
   const body = await req.json()
   const { session_id, ...sessionData } = body
@@ -19,7 +19,9 @@ export async function POST(req: NextRequest) {
   if (!session_id) return NextResponse.json({ error: 'session_id diperlukan' }, { status: 400 })
 
   try {
-    const result = await generateExecutiveSummary(sessionData, profile?.gemini_api_key)
+    const result = await generateExecutiveSummary(sessionData, access.apiKey)
+
+    if (access.markUsed) await markFreeGenerateUsed(supabase, user.id)
 
     await supabase.from('sessions').update({
       executive_summary: result.summary,

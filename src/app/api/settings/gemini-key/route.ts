@@ -28,16 +28,6 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('is_subscriber')
-    .eq('id', user.id)
-    .single()
-
-  if (!profile?.is_subscriber) {
-    return NextResponse.json({ error: 'Fitur ini hanya untuk subscriber' }, { status: 403 })
-  }
-
   const body = await req.json()
   const { gemini_api_key } = body
 

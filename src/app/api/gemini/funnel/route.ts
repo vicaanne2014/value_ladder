@@ -1,17 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { generateFunnelRecommendation } from '@/lib/gemini/client'
+import { checkGeminiAccess, markFreeGenerateUsed } from '@/lib/gemini/access'
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('gemini_api_key')
-    .eq('id', user.id)
-    .single()
+  const access = await checkGeminiAccess(supabase, user.id)
+  if (!access.allowed) {
+    return NextResponse.json({ error: access.message, upgrade_required: true }, { status: 403 })
+  }
 
   const body = await req.json()
   const { session_id, tier_number, selected_idea, ...sessionData } = body
@@ -21,7 +21,9 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const result = await generateFunnelRecommendation(sessionData, tier_number, selected_idea, profile?.gemini_api_key)
+    const result = await generateFunnelRecommendation(sessionData, tier_number, selected_idea, access.apiKey)
+
+    if (access.markUsed) await markFreeGenerateUsed(supabase, user.id)
 
     await supabase.from('tier_entries').update({
       selected_idea,
