@@ -11,11 +11,12 @@ export async function POST(req: NextRequest) {
   // Cek subscriber
   const { data: profile } = await supabase
     .from('profiles')
-    .select('is_subscriber')
+    .select('is_subscriber, tier')
     .eq('id', user.id)
     .single()
 
-  if (!profile?.is_subscriber) {
+  const isSubscriber = profile?.is_subscriber || profile?.tier === 'subscriber' || profile?.tier === 'beta'
+  if (!isSubscriber) {
     return NextResponse.json({
       error: 'Fitur ekspor PDF hanya tersedia untuk subscriber.',
       upgrade_required: true,

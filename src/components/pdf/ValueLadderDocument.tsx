@@ -83,8 +83,15 @@ export function ValueLadderPDFDocument({ session }: Props) {
                 <Text style={s.tierLabel}>{TIER_NAMES[t]}{t === session.current_tier ? ' ← Produk Anda' : ''}</Text>
                 {entry?.selected_idea ? (
                   <Text style={s.tierIdea}>{entry.selected_idea}</Text>
+                ) : entry?.product_ideas && (entry.product_ideas as string[]).length > 0 ? (
+                  <>
+                    <Text style={{ fontSize: 8, color: '#6b7280', marginBottom: 3 }}>Ide yang bisa dibangun:</Text>
+                    {(entry.product_ideas as string[]).map((idea, i) => (
+                      <Text key={i} style={{ ...s.step, color: '#6b7280' }}>• {idea}</Text>
+                    ))}
+                  </>
                 ) : (
-                  <Text style={{ ...s.tierIdea, color: '#9ca3af', fontFamily: 'Helvetica-Oblique' }}>Belum dipilih</Text>
+                  <Text style={{ ...s.tierIdea, color: '#9ca3af', fontFamily: 'Helvetica-Oblique' }}>Belum ada ide</Text>
                 )}
                 {entry?.funnel_type && (
                   <Text style={s.funnelTag}>{FUNNEL_NAMES[entry.funnel_type]}</Text>
